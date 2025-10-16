@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <math.h>
 
 #define N 1000000000 // intervals
 #define NUM_THREADS 1
-double start = 0.0; 
-double end = 1.0;
-double x;
+double a = 0.0; // start of interval 
+double b = 1.0; // end of interval
+double h; // variable to hold the width of the subintervals
 
 pthread_mutex_t mutex;
  
@@ -20,39 +21,42 @@ double total_sum = 0.0;
 
 void *parallel_trapezoidalRule(void *arg) 
 {
-    int id = *(int*)arg;
-    int section = N/NUM_THREADS;
-    double local_start = start + id * section * x;
-    double local_end = local_start + section * x;
+    long id = (long)arg;
+    int intervalsPerThread = N/NUM_THREADS;
+    double local_start = a + id * intervalsPerThread * h;
+    double local_end = local_start + intervalsPerThread * h;
     double area = 0.0;
 
-    for (int m = 0; m < section; m++) {
-        double m1 = local_start + 1 * x;
-        double m2 = m1 + x;
-        area += (f(m1) + f(m2)) * x;
+    area += (f(local_start) + f(local_end)) / 2.0;
+    for (int i = 1; i < intervalsPerThread - 1; i ++) {
+        area += f(local_start + i * h);
     }
+
+    area *= h;
 
     pthread_mutex_lock(&mutex);
     total_sum += area;
     pthread_mutex_unlock(&mutex);
+
+    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[]) 
 {
-    pthread_t thread[NUM_THREADS];
-    int threadID[NUM_THREADS];
+    // threads
+    pthread_t threadID[NUM_THREADS];
 
-    x = (end - start) / N;
+    h = (b - a) / N;
 
     pthread_mutex_init(&mutex, NULL);
 
     //Create the threads
     for (long i = 0; i < NUM_THREADS; i++){
-        pthread_create(&thread[i], NULL, parallel_trapezoidalRule, (void *)i);
+        pthread_create(&threadID[i], NULL, parallel_trapezoidalRule, (void *)i);
     }
 
-    for (int i = 0; i < NUM_THREADS; i++){
-        pthread_join(thread[i], NULL);
+    for (long i = 0; i < NUM_THREADS; i++){
+        pthread_join(threadID[i], NULL);
     }
 
     printf("Result of numerical integration: %f\n", total_sum);
